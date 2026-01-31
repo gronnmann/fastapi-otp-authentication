@@ -70,6 +70,8 @@ class MyOTPConfig(OTPAuthConfig):
     # Optional: Developer mode for testing (default: False)
     developer_mode = False
     
+    cookie_secure = True  # Use secure cookies (https) in production
+    
     # Token lifetimes
     access_token_lifetime = timedelta(hours=1)
     refresh_token_lifetime = timedelta(days=7)
@@ -210,7 +212,6 @@ class MyOTPConfig(OTPAuthConfig):
 In developer mode:
 - OTP codes are always `000000` (or length of zeros)
 - Secret key validation is relaxed
-- Cookies use `secure=False` for localhost testing
 
 ⚠️ **Never use developer mode in production!**
 

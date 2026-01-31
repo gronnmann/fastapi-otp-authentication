@@ -31,6 +31,9 @@ class OTPAuthConfig(ABC):
     # Required configuration - these must be set
     secret_key: str
 
+    cookie_secure: bool = True
+    """Whether to set the 'Secure' flag on cookies (require https)."""
+
     # Token lifetimes
     access_token_lifetime: timedelta = timedelta(hours=1)
     refresh_token_lifetime: timedelta = timedelta(days=7)

@@ -3,14 +3,13 @@
 ## Running the code
 `uv` is used as the package manager. This means that:
 - To start the example server: `uv run fastapi dev examples/basic_usage.py`
-- To run tests: `uv tool run pytest tests/`
+- To run tests: `uv run pytest tests/`
 - To run ruff, do `uv tool run ruff check`
 
 ## Installing, changing dependencies etc
 - NEVER edit `pyproject.toml` or `uv.lock` directly.
 - Use `uv add <package>` to add a new dependency.
 - Use `uv remove <package>` to remove a dependency.
-- Use `uv update` to update dependencies.
 
 ## Code Style & Standards
 

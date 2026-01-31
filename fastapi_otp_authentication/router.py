@@ -215,7 +215,7 @@ def get_auth_router(
             value=refresh_token,
             max_age=int(config.refresh_token_lifetime.total_seconds()),
             httponly=True,
-            secure=not config.developer_mode,  # Use secure cookies in production
+            secure=config.cookie_secure,
             samesite="lax",
         )
 
@@ -350,7 +350,7 @@ def get_auth_router(
         response.delete_cookie(
             key="refresh_token",
             httponly=True,
-            secure=not config.developer_mode,
+            secure=config.cookie_secure,
             samesite="lax",
         )
 
