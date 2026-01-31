@@ -54,9 +54,7 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "ANN", "B", "A", "C4", "DTZ", "T10", "ISC", "ICN", "PIE", "PYI", "Q", "RSE", "RET", "SIM", "TID", "ARG", "PLE", "PLW", "TRY", "RUF"]
 ignore = [
-    "TRY003",  # Avoid specifying long messages outside exception class (opinionated)
     "B008",    # Do not perform function calls in argument defaults (FastAPI uses Depends())
-    "N818",    # Exception naming (OTPAuthException is clear)
 ]
 
 [tool.pytest.ini_options]
