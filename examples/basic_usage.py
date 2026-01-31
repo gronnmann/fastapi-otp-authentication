@@ -7,7 +7,7 @@ This example demonstrates:
 - Registering auth router
 - Using protected endpoints with authentication dependencies
 """
-
+import typing
 from collections.abc import AsyncGenerator
 from datetime import timedelta
 
@@ -23,7 +23,7 @@ from fastapi_otp_authentication import (
     TokenBlacklist,
     get_auth_router,
     get_current_user_dependency,
-    get_verified_user_dependency,
+    get_verified_user_dependency, get_custom_claims_dependency,
 )
 
 # Database configuration
@@ -137,6 +137,7 @@ app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 # Create dependencies for protected routes
 current_user = Depends(get_current_user_dependency(get_otp_db, config))
 verified_user = Depends(get_verified_user_dependency(get_otp_db, config))
+additional_claims = Depends(get_custom_claims_dependency(config))
 
 
 @app.on_event("startup")
@@ -181,7 +182,7 @@ async def protected_route(user: User = current_user) -> dict[str, str]:
 
 
 @app.get("/verified-only")
-async def verified_only_route(user: User = verified_user) -> dict[str, str]:
+async def verified_only_route(user: User = verified_user) -> dict[str, str | bool]:
     """Protected endpoint - requires verified user."""
     return {
         "message": "This route requires OTP verification",
@@ -191,6 +192,13 @@ async def verified_only_route(user: User = verified_user) -> dict[str, str]:
         "is_verified": user.is_verified,
     }
 
+@app.get("/claims")
+async def claims_route(claims: dict[str, str] = additional_claims) -> dict[str, str | typing.Any]:
+    """Endpoint to view custom JWT claims."""
+    return {
+        "message": "Custom JWT Claims",
+        "claims": claims,
+    }
 
 if __name__ == "__main__":
     import uvicorn
@@ -207,10 +215,13 @@ if __name__ == "__main__":
     2. Verify OTP (developer mode code is 000000):
        POST http://localhost:8000/auth/verify-otp
        {"email": "test@example.com", "code": "000000"}
+       → Copy the access_token from the response
 
-    3. Access protected route with the access_token:
-       GET http://localhost:8000/protected
-       Header: Authorization: Bearer <access_token>
+    3. Click the "Authorize" 🔓 button at the top of Swagger UI
+
+    4. Paste your access_token in the "Value" field and click "Authorize"
+
+    5. Now all protected endpoints will automatically use your token!
 
     📚 API Docs: http://localhost:8000/docs
     """)

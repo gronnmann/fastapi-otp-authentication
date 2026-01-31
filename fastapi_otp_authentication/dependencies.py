@@ -4,15 +4,15 @@ from collections.abc import Callable
 from typing import Any
 
 from fastapi import Depends, HTTPException, status  # type: ignore[import-untyped]
-from fastapi.security import OAuth2PasswordBearer  # type: ignore[import-untyped]
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials  # type: ignore[import-untyped]
 
 from fastapi_otp_authentication.config import OTPAuthConfig
 from fastapi_otp_authentication.db.adapter import OTPDatabase
 from fastapi_otp_authentication.security import decode_token
 from fastapi_otp_authentication.types import UserType
 
-# OAuth2 scheme for token extraction
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/verify-otp")
+# HTTP Bearer scheme for token extraction
+http_bearer_scheme = HTTPBearer()
 
 
 def get_current_user_dependency(
@@ -44,14 +44,14 @@ def get_current_user_dependency(
     """
 
     async def get_current_user(
-        token: str = Depends(oauth2_scheme),
+        credentials: HTTPAuthorizationCredentials = Depends(http_bearer_scheme),
         db: OTPDatabase[UserType] = Depends(get_otp_db),
     ) -> UserType:
         """
         Dependency that validates token and returns user.
 
         Args:
-            token: JWT token from Authorization header
+            credentials: HTTP Authorization credentials with bearer token
             db: Database adapter instance
 
         Returns:
@@ -63,6 +63,7 @@ def get_current_user_dependency(
             HTTPException: 404 if user not found
         """
         # Decode and verify token
+        token = credentials.credentials
         try:
             claims = decode_token(token, config.secret_key, config.algorithm)
         except Exception as e:
@@ -162,3 +163,73 @@ def get_verified_user_dependency(
         return user
 
     return get_verified_user
+
+
+def get_custom_claims_dependency(
+    config: OTPAuthConfig,
+) -> Callable[[str], dict[str, Any]]:
+    """
+    Create a dependency for extracting custom claims from JWT token.
+
+    Returns all custom claims added via get_additional_claims(),
+    excluding standard JWT claims (sub, exp, iat, jti, type).
+
+    Args:
+        config: OTP authentication configuration
+
+    Returns:
+        FastAPI dependency function
+
+    Example:
+        ```python
+        config = MyOTPConfig()
+
+        custom_claims = Depends(
+            get_custom_claims_dependency(config)
+        )
+
+        @app.get("/check-role")
+        async def check_role(claims: dict = custom_claims):
+            return {"role": claims.get("role"), "permissions": claims.get("permissions")}
+        ```
+    """
+
+    async def get_custom_claims(
+        credentials: HTTPAuthorizationCredentials = Depends(http_bearer_scheme),
+    ) -> dict[str, Any]:
+        """
+        Dependency that extracts custom claims from token.
+
+        Args:
+            credentials: HTTP Authorization credentials with bearer token
+
+        Returns:
+            Dictionary containing custom claims
+
+        Raises:
+            HTTPException: 401 if token is invalid or expired
+        """
+        # Decode and verify token
+        token = credentials.credentials
+        try:
+            claims = decode_token(token, config.secret_key, config.algorithm)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid or expired token: {e}",
+            ) from e
+
+        # Check token type
+        if claims.get("type") != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+            )
+
+        # Filter out standard JWT claims
+        standard_claims = {"sub", "exp", "iat", "jti", "type"}
+        custom_claims = {k: v for k, v in claims.items() if k not in standard_claims}
+
+        return custom_claims
+
+    return get_custom_claims

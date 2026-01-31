@@ -5,6 +5,7 @@ from fastapi_otp_authentication.db.adapter import OTPDatabase
 from fastapi_otp_authentication.db.models import BaseOTPUserTable, TokenBlacklist
 from fastapi_otp_authentication.dependencies import (
     get_current_user_dependency,
+    get_custom_claims_dependency,
     get_verified_user_dependency,
 )
 from fastapi_otp_authentication.router import get_auth_router
@@ -28,5 +29,6 @@ __all__ = [
     "TokenResponse",
     "get_auth_router",
     "get_current_user_dependency",
+    "get_custom_claims_dependency",
     "get_verified_user_dependency",
 ]

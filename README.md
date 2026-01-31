@@ -124,11 +124,16 @@ app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 ```python
 from fastapi import Depends
-from fastapi_otp_authentication import get_current_user_dependency, get_verified_user_dependency
+from fastapi_otp_authentication import (
+    get_current_user_dependency,
+    get_verified_user_dependency,
+    get_custom_claims_dependency,
+)
 
 # Create dependencies
 current_user = Depends(get_current_user_dependency(get_otp_db, config))
 verified_user = Depends(get_verified_user_dependency(get_otp_db, config))
+custom_claims = Depends(get_custom_claims_dependency(config))
 
 @app.get("/protected")
 async def protected_route(user: User = current_user):
@@ -137,6 +142,10 @@ async def protected_route(user: User = current_user):
 @app.get("/verified-only")
 async def verified_only(user: User = verified_user):
     return {"message": "Access granted to verified user"}
+
+@app.get("/check-claims")
+async def check_claims(claims: dict = custom_claims):
+    return {"custom_claims": claims}
 ```
 
 ## API Endpoints
@@ -219,6 +228,20 @@ class MyOTPConfig(OTPAuthConfig):
             "permissions": user.permissions,
             "organization_id": user.organization_id,
         }
+```
+
+Access custom claims in your routes:
+
+```python
+from fastapi_otp_authentication import get_custom_claims_dependency
+
+custom_claims = Depends(get_custom_claims_dependency(config))
+
+@app.get("/admin-check")
+async def admin_check(claims: dict = custom_claims):
+    if claims.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return {"message": "Admin access granted"}
 ```
 
 ### Rate Limiting
