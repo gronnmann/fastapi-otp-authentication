@@ -1,6 +1,6 @@
 """Tests for OTP security functions."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -80,7 +80,7 @@ def test_verify_otp_code_success() -> None:
     """Test successful OTP verification."""
     stored_code = "123456"
     input_code = "123456"
-    created_at = datetime.now()
+    created_at = datetime.now(UTC)
     expiry = timedelta(minutes=10)
 
     is_valid = verify_otp_code(
@@ -100,7 +100,7 @@ def test_verify_otp_code_invalid() -> None:
 
     stored_code = "123456"
     input_code = "999999"
-    created_at = datetime.now()
+    created_at = datetime.now(UTC)
     expiry = timedelta(minutes=10)
 
     # Incrementing attempts should not raise
@@ -120,7 +120,7 @@ def test_verify_otp_code_expired() -> None:
     """Test OTP verification with expired code."""
     stored_code = "123456"
     input_code = "123456"
-    created_at = datetime.now() - timedelta(minutes=15)
+    created_at = datetime.now(UTC) - timedelta(minutes=15)
     expiry = timedelta(minutes=10)
 
     with pytest.raises(HTTPException) as exc_info:
@@ -140,7 +140,7 @@ def test_verify_otp_code_too_many_attempts() -> None:
     """Test OTP verification with too many attempts."""
     stored_code = "123456"
     input_code = "123456"
-    created_at = datetime.now()
+    created_at = datetime.now(UTC)
     expiry = timedelta(minutes=10)
 
     with pytest.raises(HTTPException) as exc_info:

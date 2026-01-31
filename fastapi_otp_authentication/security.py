@@ -2,7 +2,7 @@
 
 import secrets
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, status  # type: ignore[import-untyped]
@@ -36,7 +36,7 @@ def generate_otp(length: int, developer_mode: bool) -> str:
 
 
 def create_access_token(
-    user_id: Any,
+    user_id: Any,  # noqa: ANN401
     additional_claims: dict[str, Any],
     secret_key: str,
     algorithm: str,
@@ -64,7 +64,7 @@ def create_access_token(
         ...     lifetime=timedelta(hours=1)
         ... )
     """
-    now = datetime.now()
+    now = datetime.now(UTC)
     claims = {
         "sub": str(user_id),
         "type": "access",
@@ -77,7 +77,7 @@ def create_access_token(
 
 
 def create_refresh_token(
-    user_id: Any,
+    user_id: Any,  # noqa: ANN401
     secret_key: str,
     algorithm: str,
     lifetime: timedelta,
@@ -102,7 +102,7 @@ def create_refresh_token(
         ...     lifetime=timedelta(days=7)
         ... )
     """
-    now = datetime.now()
+    now = datetime.now(UTC)
     claims = {
         "sub": str(user_id),
         "type": "refresh",
@@ -187,7 +187,7 @@ def verify_otp_code(
         )
 
     # Check expiration
-    now = datetime.now()
+    now = datetime.now(UTC)
     if now - created_at > expiry:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

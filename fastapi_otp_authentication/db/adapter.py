@@ -1,6 +1,6 @@
 """Database adapter for OTP authentication operations."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select  # type: ignore[import-untyped]
@@ -92,7 +92,7 @@ class OTPDatabase[UserType]:
             user: User object to update
             code: New OTP code to set
         """
-        now = datetime.now()
+        now = datetime.now(UTC)
         user.otp_code = code
         user.otp_created_at = now
         user.otp_attempts = 0
@@ -152,7 +152,7 @@ class OTPDatabase[UserType]:
         blacklist_entry = self.blacklist_model(  # type: ignore[call-arg]
             jti=jti,
             token_type=token_type,
-            blacklisted_at=datetime.now(),
+            blacklisted_at=datetime.now(UTC),
             expires_at=expires_at,
         )
         self.session.add(blacklist_entry)
@@ -179,7 +179,7 @@ class OTPDatabase[UserType]:
         Returns:
             Number of tokens removed
         """
-        now = datetime.now()
+        now = datetime.now(UTC)
         statement = select(self.blacklist_model).where(self.blacklist_model.expires_at < now)  # type: ignore[attr-defined]
         result = await self.session.execute(statement)
         expired_tokens = result.scalars().all()

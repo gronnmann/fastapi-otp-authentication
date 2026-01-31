@@ -1,7 +1,7 @@
 """API router for OTP authentication endpoints."""
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import (  # type: ignore[import-untyped]
     APIRouter,
@@ -88,7 +88,7 @@ def get_auth_router(
         # Check rate limiting if user exists and has requested OTP before
         if user and hasattr(user, "last_otp_request_at") and user.last_otp_request_at:
             time_since_last_request = (
-                datetime.now() - user.last_otp_request_at
+                datetime.now(UTC) - user.last_otp_request_at
             ).total_seconds()
             if time_since_last_request < config.otp_rate_limit_seconds:
                 wait_time = int(config.otp_rate_limit_seconds - time_since_last_request)
@@ -341,7 +341,7 @@ def get_auth_router(
                     await db.add_to_blacklist(
                         jti=refresh_jti,
                         token_type="refresh",
-                        expires_at=datetime.fromtimestamp(refresh_exp),
+                        expires_at=datetime.fromtimestamp(refresh_exp, tz=UTC),
                     )
             except Exception:
                 pass  # Token might already be invalid

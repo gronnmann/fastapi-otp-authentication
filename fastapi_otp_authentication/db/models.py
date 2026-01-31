@@ -2,8 +2,10 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import Boolean, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column  # type: ignore[import-untyped]
+
+from fastapi_otp_authentication.db.types import UTCDateTime
 
 
 class BaseOTPUserTable[ID]:
@@ -42,9 +44,13 @@ class BaseOTPUserTable[ID]:
 
     # OTP-related fields
     otp_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    otp_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    otp_created_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime, nullable=True
+    )
     otp_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    last_otp_request_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_otp_request_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime, nullable=True
+    )
 
     # Verification status
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -85,6 +91,6 @@ class TokenBlacklist:
 
     # Timestamps
     blacklisted_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now, nullable=False
+        UTCDateTime, nullable=False
     )
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)

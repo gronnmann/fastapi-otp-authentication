@@ -1,0 +1,75 @@
+# GitHub Copilot Instructions for fastapi-otp-authentication
+
+## Code Style & Standards
+- `uv` is to be used as package manager.
+
+### Syntax
+- Use modern type hints syntax:
+  - `str | None` instead of `Optional[str]`
+  - `dict[str, Any]` instead of `Dict[str, Any]`
+  - `list[int]` instead of `List[int]`
+  - Use `type` instead of `Type` for type annotations
+
+### Type Hints
+- ALL functions must have complete type hints (parameters and return types)
+- Use generic types for flexibility: `BaseOTPUserTable[ID]`, `OTPDatabase[UserType]`
+- Prefer explicit types over `Any` when possible
+- Use `Any` from `typing` module when truly dynamic types are needed
+
+### Naming Conventions
+- Functions/methods: `snake_case`
+- Classes: `PascalCase`
+- Constants: `UPPER_SNAKE_CASE`
+- Private attributes: prefix with underscore `_name`
+
+### DateTime Handling
+- Use UTC timezone (defined as UTCDateTime in db/types.py)
+
+### SQLAlchemy 2.0 Patterns
+- Use `Mapped[type]` for all ORM fields
+- Use `mapped_column()` for field definitions
+- Generic base classes: `class BaseOTPUserTable[ID]:`
+- Async sessions and queries: `AsyncSession`, `async with`
+- Use `select()` for queries, not legacy query API
+
+### FastAPI Patterns
+- Use `HTTPException` for all errors (no custom exception classes)
+- Status codes from `fastapi.status` module
+- Dependency injection with `Depends()`
+- Cookie extraction via `Request` object: `request.cookies.get("name")`
+- HTTP-only cookies for refresh tokens
+
+### Security Best Practices
+- Cryptographic randomness: `secrets` module
+- Constant-time comparison: `secrets.compare_digest()`
+- JWT tokens with `jti` claim for blacklisting
+- HTTP-only, secure cookies in production
+- Rate limiting for OTP requests
+- Maximum attempt limits for OTP verification
+
+### Documentation
+- All public functions/classes need docstrings
+- Use Google-style docstrings with sections: Args, Returns, Raises, Example
+- Include type information in docstrings
+- Provide usage examples in class/module docstrings
+
+### Testing
+- Use pytest with pytest-asyncio
+- Test file naming: `test_*.py`
+- Use descriptive test names: `test_verify_otp_code_expired()`
+- Mock external dependencies (email sending, etc.)
+- Test both success and error paths
+
+## Common Tasks
+
+### Adding Configuration Option
+1. Add class attribute to `OTPAuthConfig`
+2. Provide sensible default value
+3. Document in class docstring
+4. Use in relevant endpoints/functions
+
+### Adding Database Field
+1. Add to appropriate mixin class (`BaseOTPUserTable` or `TokenBlacklist`)
+2. Use `Mapped[type]` annotation
+3. Use `mapped_column()` with SQLAlchemy types
+4. Update example in docstring

@@ -106,7 +106,7 @@ class OTPAuthConfig(ABC):
         """
         raise NotImplementedError("send_otp method must be implemented")
 
-    def get_additional_claims(self, _user: Any) -> dict[str, Any]:
+    def get_additional_claims(self, _user: Any) -> dict[str, Any]: # noqa: ANN401
         """
         Get additional claims to include in JWT tokens.
 
