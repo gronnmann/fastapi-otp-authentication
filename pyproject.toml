@@ -4,9 +4,6 @@ version = "0.1.0"
 description = "A flexible, type-safe library for adding OTP-based authentication to FastAPI applications"
 readme = "README.md"
 requires-python = ">=3.12"
-authors = [
-    {name = "Your Name", email = "your.email@example.com"}
-]
 license = {text = "MIT"}
 keywords = ["fastapi", "otp", "authentication", "jwt", "security"]
 
