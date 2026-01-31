@@ -4,7 +4,10 @@ from collections.abc import Callable
 from typing import Any
 
 from fastapi import Depends, HTTPException, status  # type: ignore[import-untyped]
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials  # type: ignore[import-untyped]
+from fastapi.security import (  # type: ignore[import-untyped]
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+)
 
 from fastapi_otp_authentication.config import OTPAuthConfig
 from fastapi_otp_authentication.db.adapter import OTPDatabase
@@ -228,8 +231,6 @@ def get_custom_claims_dependency(
 
         # Filter out standard JWT claims
         standard_claims = {"sub", "exp", "iat", "jti", "type"}
-        custom_claims = {k: v for k, v in claims.items() if k not in standard_claims}
-
-        return custom_claims
+        return {k: v for k, v in claims.items() if k not in standard_claims}
 
     return get_custom_claims

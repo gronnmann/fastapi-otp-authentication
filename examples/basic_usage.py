@@ -23,7 +23,8 @@ from fastapi_otp_authentication import (
     TokenBlacklist,
     get_auth_router,
     get_current_user_dependency,
-    get_verified_user_dependency, get_custom_claims_dependency,
+    get_custom_claims_dependency,
+    get_verified_user_dependency,
 )
 
 # Database configuration
