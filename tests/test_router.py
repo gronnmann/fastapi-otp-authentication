@@ -6,11 +6,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from fastapi_otp_authentication.db.adapter import OTPDatabase
+from fastapi_otp_authentication.db.sqlalchemy.adapter import SQLAlchemyAdapter
 from fastapi_otp_authentication.router import get_auth_router
 from fastapi_otp_authentication.security import create_refresh_token
-from tests.conftest import Blacklist, MockOTPConfig, User
-
+from tests.conftest import MockOTPConfig, User
 
 # ============================================================================
 # Fixtures
@@ -18,11 +17,11 @@ from tests.conftest import Blacklist, MockOTPConfig, User
 
 
 @pytest.fixture
-def app(otp_db: OTPDatabase[User], test_config: MockOTPConfig) -> FastAPI:
+def app(otp_db: SQLAlchemyAdapter[User], test_config: MockOTPConfig) -> FastAPI:
     """Create FastAPI application with auth router."""
     app_instance = FastAPI()
 
-    def get_db() -> OTPDatabase[User]:
+    def get_db() -> SQLAlchemyAdapter[User]:
         return otp_db
 
     auth_router = get_auth_router(get_db, test_config)
@@ -73,7 +72,7 @@ class TestRequestOTP:
         self,
         client: TestClient,
         test_config: MockOTPConfig,
-        otp_db: OTPDatabase[User],
+        otp_db: SQLAlchemyAdapter[User],
     ) -> None:
         """Should auto-create user when auto_create_user is True."""
         new_email = "newuser@example.com"
@@ -112,7 +111,7 @@ class TestRequestOTP:
         client: TestClient,
         test_config: MockOTPConfig,
         test_user: User,
-        otp_db: OTPDatabase[User],
+        otp_db: SQLAlchemyAdapter[User],
     ) -> None:
         """Should enforce rate limiting on OTP requests."""
         # First request succeeds
@@ -162,7 +161,7 @@ class TestVerifyOTP:
         client: TestClient,
         test_config: MockOTPConfig,
         test_user: User,
-        otp_db: OTPDatabase[User],
+        otp_db: SQLAlchemyAdapter[User],
     ) -> None:
         """Should verify valid OTP and return tokens."""
         # Set OTP for user
@@ -197,7 +196,7 @@ class TestVerifyOTP:
         self,
         client: TestClient,
         test_user: User,
-        otp_db: OTPDatabase[User],
+        otp_db: SQLAlchemyAdapter[User],
     ) -> None:
         """Should reject incorrect OTP code."""
         await otp_db.update_otp(test_user, "123456")
@@ -223,7 +222,7 @@ class TestVerifyOTP:
         self,
         client: TestClient,
         test_user: User,
-        otp_db: OTPDatabase[User],
+        otp_db: SQLAlchemyAdapter[User],
     ) -> None:
         """Should reject expired OTP code."""
         await otp_db.update_otp(test_user, "123456")
@@ -248,7 +247,7 @@ class TestVerifyOTP:
         self,
         client: TestClient,
         test_user: User,
-        otp_db: OTPDatabase[User],
+        otp_db: SQLAlchemyAdapter[User],
     ) -> None:
         """Should reject after max attempts reached."""
         await otp_db.update_otp(test_user, "123456")
@@ -365,7 +364,7 @@ class TestRefreshToken:
         client: TestClient,
         test_config: MockOTPConfig,
         verified_user: User,
-        otp_db: OTPDatabase[User],
+        otp_db: SQLAlchemyAdapter[User],
     ) -> None:
         """Should reject blacklisted refresh token."""
         from fastapi_otp_authentication.security import decode_token
@@ -434,7 +433,7 @@ class TestLogout:
         client: TestClient,
         test_config: MockOTPConfig,
         verified_user: User,
-        otp_db: OTPDatabase[User],
+        otp_db: SQLAlchemyAdapter[User],
     ) -> None:
         """Should blacklist refresh token on logout."""
         from fastapi_otp_authentication.security import decode_token
@@ -524,7 +523,7 @@ class TestFullAuthenticationFlow:
         self,
         client: TestClient,
         test_config: MockOTPConfig,
-        otp_db: OTPDatabase[User],
+        otp_db: SQLAlchemyAdapter[User],
     ) -> None:
         """Test complete flow: request OTP -> verify -> refresh -> logout."""
         email = "complete@example.com"

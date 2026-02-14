@@ -22,7 +22,7 @@
 
 ### Type Hints
 - ALL functions must have complete type hints (parameters and return types)
-- Use generic types for flexibility: `BaseOTPUserTable[ID]`, `OTPDatabase[UserType]`
+- Use generic types for flexibility: `BaseOTPUserTable[ID]`, `SQLAlchemyAdapter[UserType]`, `DatabaseAdapter[UserType]`
 - Prefer explicit types over `Any` when possible
 - Use `Any` from `typing` module when truly dynamic types are needed
 

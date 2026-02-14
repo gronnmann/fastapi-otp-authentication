@@ -5,8 +5,8 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import HTTPException, status  # type: ignore[import-untyped]
-from jose import JWTError, jwt  # type: ignore[import-untyped]
+from fastapi import HTTPException, status
+from jose import JWTError, jwt
 
 
 def generate_otp(length: int, developer_mode: bool) -> str:

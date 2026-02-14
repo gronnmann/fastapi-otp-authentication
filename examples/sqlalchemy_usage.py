@@ -2,7 +2,7 @@
 
 This example demonstrates:
 - Setting up a user model with BaseOTPUserTable
-- Creating database session and OTPDatabase adapter
+- Creating database session and SQLAlchemyAdapter
 - Configuring OTP authentication with custom send_otp implementation
 - Registering auth router
 - Using protected endpoints with authentication dependencies
@@ -19,7 +19,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from fastapi_otp_authentication import (
     BaseOTPUserTable,
     OTPAuthConfig,
-    OTPDatabase,
+    SQLAlchemyAdapter,
     TokenBlacklist,
     get_auth_router,
     get_current_user_dependency,
@@ -71,9 +71,9 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def get_otp_db(
     session: AsyncSession = Depends(get_async_session),
-) -> AsyncGenerator[OTPDatabase[User], None]:
+) -> AsyncGenerator[SQLAlchemyAdapter[User], None]:
     """Dependency to get OTP database adapter."""
-    yield OTPDatabase(session, User, Blacklist)
+    yield SQLAlchemyAdapter(session, User, Blacklist)
 
 
 # OTP configuration
@@ -148,7 +148,7 @@ async def startup() -> None:
 
     # Create a test user if it doesn't exist
     async with async_session_maker() as session:
-        db = OTPDatabase(session, User, Blacklist)
+        db = SQLAlchemyAdapter(session, User, Blacklist)
         existing_user = await db.get_by_email("test@example.com")
 
         if not existing_user:

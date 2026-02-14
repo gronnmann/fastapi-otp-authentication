@@ -1,132 +1,10 @@
-"""Database adapter for OTP authentication operations."""
-
+import typing
 from datetime import UTC, datetime
-from typing import Any, Protocol, runtime_checkable
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi_otp_authentication.db.protocols import OTPUserProtocol
-
-
-@runtime_checkable
-class DatabaseAdapter[UserType: OTPUserProtocol](Protocol):
-    """
-    Abstract protocol defining the interface for database adapters.
-
-    This protocol ensures that different database backends (SQLAlchemy, MongoDB, etc.)
-    implement the same interface for OTP authentication operations.
-
-    All methods are async and should be implemented by concrete adapter classes.
-    """
-
-    async def get_by_email(self, email: str) -> UserType | None:
-        """
-        Retrieve user by email address.
-
-        Args:
-            email: Email address to search for
-
-        Returns:
-            User object if found, None otherwise
-        """
-        ...
-
-    async def get_by_id(self, user_id: int | str) -> UserType | None:
-        """
-        Retrieve user by ID.
-
-        Args:
-            user_id: User ID to search for
-
-        Returns:
-            User object if found, None otherwise
-        """
-        ...
-
-    async def create_user(self, email: str, **kwargs: object) -> UserType:
-        """
-        Create a new user with the given email and additional fields.
-
-        Args:
-            email: User's email address
-            **kwargs: Additional user fields
-
-        Returns:
-            Created user object
-        """
-        ...
-
-    async def update_otp(self, user: UserType, code: str) -> None:
-        """
-        Update user's OTP code and reset attempt counter.
-
-        Args:
-            user: User object to update
-            code: New OTP code to set
-        """
-        ...
-
-    async def increment_otp_attempts(self, user: UserType) -> None:
-        """
-        Increment the OTP verification attempt counter.
-
-        Args:
-            user: User object to update
-        """
-        ...
-
-    async def verify_user(self, user: UserType) -> None:
-        """
-        Mark user as verified and clear OTP data.
-
-        Args:
-            user: User object to verify
-        """
-        ...
-
-    async def clear_otp(self, user: UserType) -> None:
-        """
-        Clear OTP data from user without marking as verified.
-
-        Args:
-            user: User object to clear OTP from
-        """
-        ...
-
-    async def add_to_blacklist(
-        self, jti: str, token_type: str, expires_at: datetime
-    ) -> None:
-        """
-        Add a token to the blacklist.
-
-        Args:
-            jti: JWT ID (jti claim from token)
-            token_type: Type of token ("access" or "refresh")
-            expires_at: Token expiration timestamp
-        """
-        ...
-
-    async def is_blacklisted(self, jti: str) -> bool:
-        """
-        Check if a token is blacklisted.
-
-        Args:
-            jti: JWT ID to check
-
-        Returns:
-            True if token is blacklisted, False otherwise
-        """
-        ...
-
-    async def cleanup_blacklist(self) -> int:
-        """
-        Remove expired tokens from the blacklist.
-
-        Returns:
-            Number of tokens removed
-        """
-        ...
 
 
 class SQLAlchemyAdapter[UserType: OTPUserProtocol]:
@@ -152,7 +30,7 @@ class SQLAlchemyAdapter[UserType: OTPUserProtocol]:
         self,
         session: AsyncSession,
         user_model: type[UserType],
-        blacklist_model: type[Any],
+        blacklist_model: type[typing.Any],
     ) -> None:
         """
         Initialize the database adapter.
@@ -317,8 +195,3 @@ class SQLAlchemyAdapter[UserType: OTPUserProtocol]:
 
         await self.session.commit()
         return count
-
-
-# Backward compatibility alias
-# DEPRECATED: Use SQLAlchemyAdapter instead. This alias will be removed in a future version.
-OTPDatabase = SQLAlchemyAdapter

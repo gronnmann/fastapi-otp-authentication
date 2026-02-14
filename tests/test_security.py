@@ -13,7 +13,6 @@ from fastapi_otp_authentication.security import (
     verify_otp_code,
 )
 
-
 # ============================================================================
 # OTP Generation Tests
 # ============================================================================
@@ -366,9 +365,9 @@ class TestVerifyOTPCode:
         assert exc_info.value.status_code == 429
 
     def test_boundary_not_yet_expired(self) -> None:
-        """OTP should still be valid exactly at expiry boundary."""
-        created = datetime.now(UTC) - timedelta(minutes=10)
-        # Just at the boundary
+        """OTP should still be valid just before expiry boundary."""
+        # Set to 1 second before expiry to avoid timing issues
+        created = datetime.now(UTC) - timedelta(minutes=10) + timedelta(seconds=1)
         result = verify_otp_code(
             stored_code="123456",
             input_code="123456",
@@ -377,6 +376,4 @@ class TestVerifyOTPCode:
             max_attempts=5,
             current_attempts=0,
         )
-        # This might be valid or expired depending on microseconds
-        # Just checking it doesn't crash
-        assert isinstance(result, bool)
+        assert result is True

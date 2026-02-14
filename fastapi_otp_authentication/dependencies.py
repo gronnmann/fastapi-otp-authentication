@@ -1,32 +1,35 @@
 """FastAPI dependencies for OTP authentication."""
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
-from fastapi import Depends, HTTPException, status  # type: ignore[import-untyped]
-from fastapi.security import (  # type: ignore[import-untyped]
+from fastapi import Depends, HTTPException, status
+from fastapi.security import (
     HTTPAuthorizationCredentials,
     HTTPBearer,
 )
 
 from fastapi_otp_authentication.config import OTPAuthConfig
-from fastapi_otp_authentication.db.adapter import OTPDatabase
+from fastapi_otp_authentication.db.adapter import DatabaseAdapter
+from fastapi_otp_authentication.db.protocols import OTPUserProtocol
 from fastapi_otp_authentication.security import decode_token
-from fastapi_otp_authentication.types import UserType
 
 # HTTP Bearer scheme for token extraction
 http_bearer_scheme = HTTPBearer()
 
 
 def get_current_user_dependency(
-    get_otp_db: Callable[[], OTPDatabase[UserType]],
+    get_otp_db: Callable[[], DatabaseAdapter[OTPUserProtocol]],
     config: OTPAuthConfig,
-) -> Callable[[str, OTPDatabase[UserType]], Any]:
+) -> Callable[
+    [HTTPAuthorizationCredentials, DatabaseAdapter[OTPUserProtocol]],
+    Awaitable[OTPUserProtocol],
+]:
     """
     Create a dependency for getting the current authenticated user.
 
     Args:
-        get_otp_db: Callable that returns OTPDatabase instance
+        get_otp_db: Callable that returns DatabaseAdapter instance
         config: OTP authentication configuration
 
     Returns:
@@ -48,8 +51,8 @@ def get_current_user_dependency(
 
     async def get_current_user(
         credentials: HTTPAuthorizationCredentials = Depends(http_bearer_scheme),
-        db: OTPDatabase[UserType] = Depends(get_otp_db),
-    ) -> UserType:
+        db: DatabaseAdapter[OTPUserProtocol] = Depends(get_otp_db),
+    ) -> OTPUserProtocol:
         """
         Dependency that validates token and returns user.
 
@@ -111,9 +114,9 @@ def get_current_user_dependency(
 
 
 def get_verified_user_dependency(
-    get_otp_db: Callable[[], OTPDatabase[UserType]],
+    get_otp_db: Callable[[], DatabaseAdapter[OTPUserProtocol]],
     config: OTPAuthConfig,
-) -> Callable[[str, OTPDatabase[UserType]], Any]:
+) -> Callable[[OTPUserProtocol], Awaitable[OTPUserProtocol]]:
     """
     Create a dependency for getting a verified authenticated user.
 
@@ -121,7 +124,7 @@ def get_verified_user_dependency(
     has completed OTP verification.
 
     Args:
-        get_otp_db: Callable that returns OTPDatabase instance
+        get_otp_db: Callable that returns DatabaseAdapter instance
         config: OTP authentication configuration
 
     Returns:
@@ -143,8 +146,8 @@ def get_verified_user_dependency(
     get_current_user = get_current_user_dependency(get_otp_db, config)
 
     async def get_verified_user(
-        user: UserType = Depends(get_current_user),
-    ) -> UserType:
+        user: OTPUserProtocol = Depends(get_current_user),
+    ) -> OTPUserProtocol:
         """
         Dependency that ensures user is verified.
 
@@ -170,7 +173,7 @@ def get_verified_user_dependency(
 
 def get_custom_claims_dependency(
     config: OTPAuthConfig,
-) -> Callable[[str], dict[str, Any]]:
+) -> Callable[[HTTPAuthorizationCredentials], Awaitable[dict[str, Any]]]:
     """
     Create a dependency for extracting custom claims from JWT token.
 
