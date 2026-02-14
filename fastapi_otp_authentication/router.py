@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from fastapi import (  # type: ignore[import-untyped]
+from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
@@ -14,6 +14,7 @@ from fastapi import (  # type: ignore[import-untyped]
 
 from fastapi_otp_authentication.config import OTPAuthConfig
 from fastapi_otp_authentication.db.adapter import DatabaseAdapter
+from fastapi_otp_authentication.db.protocols import OTPUserProtocol
 from fastapi_otp_authentication.schemas import (
     MessageResponse,
     OTPRequest,
@@ -27,11 +28,10 @@ from fastapi_otp_authentication.security import (
     generate_otp,
     verify_otp_code,
 )
-from fastapi_otp_authentication.types import UserType
 
 
 def get_auth_router(
-    get_otp_db: Callable[[], DatabaseAdapter[UserType]],
+    get_otp_db: Callable[[], DatabaseAdapter[OTPUserProtocol]],
     config: OTPAuthConfig,
 ) -> APIRouter:
     """
@@ -66,7 +66,7 @@ def get_auth_router(
     )
     async def request_otp(
         request: OTPRequest,
-        db: DatabaseAdapter[UserType] = Depends(get_otp_db),
+        db: DatabaseAdapter[OTPUserProtocol] = Depends(get_otp_db),
     ) -> MessageResponse:
         """
         Request an OTP code to be sent to the user's email.
@@ -100,8 +100,7 @@ def get_auth_router(
         if not user:
             if config.auto_create_user:
                 # Auto-create user if enabled
-                user_data = await config.create_user(request.email)
-                user = await db.create_user(request.email, **user_data)
+                user = await db.create_user(request.email)
             else:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -136,7 +135,7 @@ def get_auth_router(
     async def verify_otp(
         request: OTPVerify,
         response: Response,
-        db: DatabaseAdapter[UserType] = Depends(get_otp_db),
+        db: DatabaseAdapter[OTPUserProtocol] = Depends(get_otp_db),
     ) -> TokenResponse:
         """
         Verify OTP code and issue authentication tokens.
@@ -230,7 +229,7 @@ def get_auth_router(
     )
     async def refresh_token(
         request: Request,
-        db: DatabaseAdapter[UserType] = Depends(get_otp_db),
+        db: DatabaseAdapter[OTPUserProtocol] = Depends(get_otp_db),
     ) -> TokenResponse:
         """
         Refresh access token using refresh token from cookie.
@@ -312,7 +311,7 @@ def get_auth_router(
     async def logout(
         request: Request,
         response: Response,
-        db: DatabaseAdapter[UserType] = Depends(get_otp_db),
+        db: DatabaseAdapter[OTPUserProtocol] = Depends(get_otp_db),
     ) -> MessageResponse:
         """
         Logout user by blacklisting refresh token.

@@ -89,4 +89,6 @@ dev = [
     "motor>=3.0.0",
     "pymongo>=4.0.0",
     "uvicorn>=0.40.0",
+    "mypy>=1.11.0",
+    "types-python-jose>=3.5.0.20250531",
 ]

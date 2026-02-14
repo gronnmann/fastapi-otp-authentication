@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from sqlalchemy import Boolean, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column  # type: ignore[import-untyped]
+from sqlalchemy.orm import Mapped, mapped_column
 
 from fastapi_otp_authentication.db.sqlalchemy.types import UTCDateTime
 

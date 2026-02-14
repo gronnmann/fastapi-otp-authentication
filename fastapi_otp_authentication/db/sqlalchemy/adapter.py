@@ -4,8 +4,10 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from fastapi_otp_authentication.db.protocols import OTPUserProtocol
 
-class SQLAlchemyAdapter[UserType]:
+
+class SQLAlchemyAdapter[UserType: OTPUserProtocol]:
     """
     SQLAlchemy implementation of the DatabaseAdapter protocol.
 
@@ -52,7 +54,7 @@ class SQLAlchemyAdapter[UserType]:
         Returns:
             User object if found, None otherwise
         """
-        statement = select(self.user_model).where(self.user_model.email == email)
+        statement = select(self.user_model).where(self.user_model.email == email)  # type: ignore[arg-type]
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
@@ -97,7 +99,7 @@ class SQLAlchemyAdapter[UserType]:
         user.otp_code = code
         user.otp_created_at = now
         user.otp_attempts = 0
-        user.last_otp_request_at = now  # type: ignore[attr-defined]
+        user.last_otp_request_at = now
         await self.session.commit()
         await self.session.refresh(user)
 
@@ -150,7 +152,7 @@ class SQLAlchemyAdapter[UserType]:
             token_type: Type of token ("access" or "refresh")
             expires_at: Token expiration timestamp
         """
-        blacklist_entry = self.blacklist_model(  # type: ignore[call-arg]
+        blacklist_entry = self.blacklist_model(
             jti=jti,
             token_type=token_type,
             blacklisted_at=datetime.now(UTC),
@@ -169,7 +171,7 @@ class SQLAlchemyAdapter[UserType]:
         Returns:
             True if token is blacklisted, False otherwise
         """
-        statement = select(self.blacklist_model).where(self.blacklist_model.jti == jti)  # type: ignore[attr-defined]
+        statement = select(self.blacklist_model).where(self.blacklist_model.jti == jti)
         result = await self.session.execute(statement)
         return result.scalar_one_or_none() is not None
 
@@ -181,7 +183,9 @@ class SQLAlchemyAdapter[UserType]:
             Number of tokens removed
         """
         now = datetime.now(UTC)
-        statement = select(self.blacklist_model).where(self.blacklist_model.expires_at < now)  # type: ignore[attr-defined]
+        statement = select(self.blacklist_model).where(
+            self.blacklist_model.expires_at < now
+        )
         result = await self.session.execute(statement)
         expired_tokens = result.scalars().all()
 

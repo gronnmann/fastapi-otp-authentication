@@ -1,6 +1,6 @@
 """Pydantic schemas for request/response models."""
 
-from pydantic import BaseModel, EmailStr, Field  # type: ignore[import-untyped]
+from pydantic import BaseModel, EmailStr, Field
 
 
 class OTPRequest(BaseModel):

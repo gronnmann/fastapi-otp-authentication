@@ -7,6 +7,11 @@ from fastapi_otp_authentication.db import (
     SQLAlchemyAdapter,
     TokenBlacklist,
 )
+from fastapi_otp_authentication.db.protocols import (
+    OTPUserProtocol,
+    PydanticOTPUserProtocol,
+    SQLAlchemyUserModelProtocol,
+)
 from fastapi_otp_authentication.dependencies import (
     get_current_user_dependency,
     get_custom_claims_dependency,
@@ -28,8 +33,11 @@ __all__ = [
     "MessageResponse",
     "OTPAuthConfig",
     "OTPRequest",
+    "OTPUserProtocol",
     "OTPVerify",
+    "PydanticOTPUserProtocol",
     "SQLAlchemyAdapter",
+    "SQLAlchemyUserModelProtocol",
     "TokenBlacklist",
     "TokenResponse",
     "get_auth_router",

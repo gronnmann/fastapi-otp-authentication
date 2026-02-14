@@ -6,7 +6,7 @@ from sqlalchemy import types
 from sqlalchemy.engine import Dialect
 
 
-class UTCDateTime(types.TypeDecorator):
+class UTCDateTime(types.TypeDecorator[datetime]):
     """
     Timezone-aware DateTime type that always stores and retrieves UTC datetimes.
 

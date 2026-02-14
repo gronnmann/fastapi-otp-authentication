@@ -2,11 +2,13 @@
 
 import contextlib
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
+
+from fastapi_otp_authentication.db.protocols import PydanticOTPUserProtocol
 
 try:
-    from bson import ObjectId  # type: ignore[import-untyped]
-    from motor.motor_asyncio import AsyncIOMotorDatabase  # type: ignore[import-untyped]
+    from bson import ObjectId
+    from motor.motor_asyncio import AsyncIOMotorDatabase
 except ImportError as e:
     raise ImportError(
         "MongoDB support requires motor and pymongo. "
@@ -14,7 +16,7 @@ except ImportError as e:
     ) from e
 
 
-class MongoDBAdapter[UserType]:
+class MongoDBAdapter[UserType: PydanticOTPUserProtocol]:
     """
     MongoDB implementation of the DatabaseAdapter protocol.
 
@@ -40,7 +42,7 @@ class MongoDBAdapter[UserType]:
 
     def __init__(
         self,
-        database: AsyncIOMotorDatabase,
+        database: "AsyncIOMotorDatabase[Any]",
         user_collection_name: str,
         blacklist_collection_name: str,
         user_model_class: type[UserType],
@@ -87,7 +89,7 @@ class MongoDBAdapter[UserType]:
             ):
                 doc[field] = doc[field].replace(tzinfo=UTC)
 
-        return self.user_model_class.model_validate(doc)
+        return cast(UserType, self.user_model_class.model_validate(doc))
 
     def _serialize_user(self, user: UserType) -> dict[str, Any]:
         """
@@ -172,7 +174,7 @@ class MongoDBAdapter[UserType]:
         user_data["_id"] = str(result.inserted_id)
 
         # Return as Pydantic model
-        return self.user_model_class.model_validate(user_data)
+        return cast(UserType, self.user_model_class.model_validate(user_data))
 
     async def update_otp(self, user: UserType, code: str) -> None:
         """
@@ -206,10 +208,10 @@ class MongoDBAdapter[UserType]:
         )
 
         # Update the user object in-place
-        user.otp_code = code  # type: ignore[attr-defined]
-        user.otp_created_at = now  # type: ignore[attr-defined]
-        user.otp_attempts = 0  # type: ignore[attr-defined]
-        user.last_otp_request_at = now  # type: ignore[attr-defined]
+        user.otp_code = code
+        user.otp_created_at = now
+        user.otp_attempts = 0
+        user.last_otp_request_at = now
 
     async def increment_otp_attempts(self, user: UserType) -> None:
         """
@@ -232,7 +234,7 @@ class MongoDBAdapter[UserType]:
         )
 
         # Update the user object in-place
-        user.otp_attempts += 1  # type: ignore[attr-defined]
+        user.otp_attempts += 1
 
     async def verify_user(self, user: UserType) -> None:
         """
@@ -263,10 +265,10 @@ class MongoDBAdapter[UserType]:
         )
 
         # Update the user object in-place
-        user.is_verified = True  # type: ignore[attr-defined]
-        user.otp_code = None  # type: ignore[attr-defined]
-        user.otp_created_at = None  # type: ignore[attr-defined]
-        user.otp_attempts = 0  # type: ignore[attr-defined]
+        user.is_verified = True
+        user.otp_code = None
+        user.otp_created_at = None
+        user.otp_attempts = 0
 
     async def clear_otp(self, user: UserType) -> None:
         """
@@ -297,9 +299,9 @@ class MongoDBAdapter[UserType]:
         )
 
         # Update the user object in-place
-        user.otp_code = None  # type: ignore[attr-defined]
-        user.otp_created_at = None  # type: ignore[attr-defined]
-        user.otp_attempts = 0  # type: ignore[attr-defined]
+        user.otp_code = None
+        user.otp_created_at = None
+        user.otp_attempts = 0
 
     async def add_to_blacklist(
         self, jti: str, token_type: str, expires_at: datetime
