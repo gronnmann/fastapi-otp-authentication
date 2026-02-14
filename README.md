@@ -15,23 +15,44 @@ A flexible, type-safe library for adding OTP (One-Time Password) based authentic
 - 💯 **100% Type Safe**: Full mypy strict mode compliance
 - 🎯 **Flexible**: Extend abstract classes to customize behavior
 - 🧑‍💻 **Developer Mode**: Testing mode with predictable OTP codes
-- 🔧 **SQLAlchemy Async**: Modern async/await patterns
+- 🔧 **Multiple Database Backends**: SQLAlchemy (SQL) or MongoDB (NoSQL)
 - 📝 **Custom Claims**: Add your own JWT claims
 - ⚡ **Production Ready**: Secret validation and security best practices
+
+## Database Support
+
+This library supports both SQL and NoSQL databases:
+
+| Backend | Adapter | Models | Use Case |
+|---------|---------|--------|----------|
+| **SQLAlchemy** | `SQLAlchemyAdapter` | `BaseOTPUserTable` (ORM) | PostgreSQL, MySQL, SQLite, etc. |
+| **MongoDB** | `MongoDBAdapter` | `BaseOTPUserDocument` (Pydantic) | MongoDB Atlas, local MongoDB |
+
+Choose the backend that fits your stack. Both implementations provide the same OTP authentication features.
 
 ## Installation
 
 ```bash
-# Install the library
+# Install base package
 uv add git+https://github.com/gronnmann/fastapi-otp-authentication.git
 
-# Install your database driver (choose one)
-uv add asyncpg  # PostgreSQL
-uv add aiomysql  # MySQL
-uv add aiosqlite  # SQLite
+# Install with SQLAlchemy support
+uv add "fastapi-otp-authentication[sqlalchemy] @ git+https://github.com/gronnmann/fastapi-otp-authentication.git"
+
+# Install with MongoDB support
+uv add "fastapi-otp-authentication[mongodb] @ git+https://github.com/gronnmann/fastapi-otp-authentication.git"
+
+# Install both (if needed)
+uv add "fastapi-otp-authentication[all] @ git+https://github.com/gronnmann/fastapi-otp-authentication.git"
+
+# Then install your database driver
+uv add asyncpg      # PostgreSQL with SQLAlchemy
+uv add aiomysql     # MySQL with SQLAlchemy
+uv add aiosqlite    # SQLite with SQLAlchemy
+# MongoDB driver (motor) is included with [mongodb] extra
 ```
 
-## Quick Start
+## Quick Start (SQLAlchemy)
 
 ### 1. Create Your User Model and Register Blacklist table
 
@@ -95,7 +116,7 @@ class MyOTPConfig(OTPAuthConfig):
 
 ```python
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from fastapi_otp_authentication import OTPDatabase
+from fastapi_otp_authentication import SQLAlchemyAdapter
 
 # Database setup
 engine = create_async_engine("sqlite+aiosqlite:///./app.db")
@@ -106,7 +127,7 @@ async def get_async_session():
         yield session
 
 async def get_otp_db(session: AsyncSession = Depends(get_async_session)):
-    yield OTPDatabase(session, User)
+    yield SQLAlchemyAdapter(session, User, Blacklist)
 ```
 
 ### 4. Register Authentication Router
@@ -148,6 +169,106 @@ async def verified_only(user: User = verified_user):
 @app.get("/check-claims")
 async def check_claims(claims: dict = custom_claims):
     return {"custom_claims": claims}
+```
+
+## Quick Start (MongoDB)
+
+### 1. Create Your User Model
+
+```python
+from pydantic import Field
+from fastapi_otp_authentication import BaseOTPUserDocument, TokenBlacklistDocument
+
+class User(BaseOTPUserDocument):
+    """User model with custom fields."""
+    username: str = Field(..., max_length=50)
+    full_name: str | None = Field(None, max_length=100)
+
+# Blacklist uses default TokenBlacklistDocument
+class Blacklist(TokenBlacklistDocument):
+    pass
+```
+
+### 2. Configure OTP Authentication
+
+Same as SQLAlchemy - extend `OTPAuthConfig`:
+
+```python
+from datetime import timedelta
+from fastapi_otp_authentication import OTPAuthConfig
+
+class MyOTPConfig(OTPAuthConfig):
+    secret_key = "your-secret-key-generate-with-openssl-rand-hex-32"
+    developer_mode = False
+    
+    access_token_lifetime = timedelta(hours=1)
+    refresh_token_lifetime = timedelta(days=7)
+    
+    otp_length = 6
+    otp_expiry = timedelta(minutes=10)
+    max_otp_attempts = 5
+    
+    async def send_otp(self, email: str, code: str) -> None:
+        print(f"OTP for {email}: {code}")
+    
+    def get_additional_claims(self, user: User) -> dict[str, Any]:
+        return {"username": user.username}
+```
+
+### 3. Set Up MongoDB and Dependencies
+
+```python
+from motor.motor_asyncio import AsyncIOMotorClient
+from fastapi_otp_authentication import MongoDBAdapter
+
+# MongoDB setup
+client = AsyncIOMotorClient("mongodb://localhost:27017")
+database = client["myapp"]
+
+async def get_otp_db():
+    return MongoDBAdapter(
+        database=database,
+        user_collection_name="users",
+        blacklist_collection_name="token_blacklist",
+        user_model_class=User,
+    )
+```
+
+### 4. Create Indexes (Important!)
+
+MongoDB requires indexes for optimal performance:
+
+```python
+@app.on_event("startup")
+async def startup():
+    # Unique index on email
+    await database["users"].create_index("email", unique=True)
+    
+    # Index on jti for blacklist lookups
+    await database["token_blacklist"].create_index("jti", unique=True)
+    
+    # TTL index to auto-delete expired tokens
+    await database["token_blacklist"].create_index(
+        "expires_at", expireAfterSeconds=0
+    )
+```
+
+### 5. Register Router & Protect Routes
+
+Same as SQLAlchemy:
+
+```python
+from fastapi_otp_authentication import get_auth_router, get_current_user_dependency
+
+config = MyOTPConfig()
+auth_router = get_auth_router(get_otp_db, config)
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
+
+current_user = Depends(get_current_user_dependency(get_otp_db, config))
+
+@app.get("/protected")
+async def protected_route(user: User = current_user):
+    return {"user_id": str(user.id), "email": user.email}
 ```
 
 ## API Endpoints
@@ -265,21 +386,45 @@ class MyOTPConfig(OTPAuthConfig):
 
 Periodically clean up expired blacklisted tokens:
 
+**SQLAlchemy:**
 ```python
 async def cleanup_expired_tokens():
     async with async_session_maker() as session:
-        db = OTPDatabase(session, User)
+        db = SQLAlchemyAdapter(session, User, Blacklist)
         removed = await db.cleanup_blacklist()
         print(f"Removed {removed} expired tokens")
 ```
-## Example Application
 
-See [examples/basic_usage.py](examples/basic_usage.py) for a complete working example.
+**MongoDB:**
+```python
+async def cleanup_expired_tokens():
+    db = MongoDBAdapter(database, "users", "token_blacklist", User)
+    removed = await db.cleanup_blacklist()
+    print(f"Removed {removed} expired tokens")
+```
 
-Run it:
+Note: MongoDB can automatically clean up expired tokens using TTL indexes (see MongoDB Quick Start).
+
+## Example Applications
+
+### SQLAlchemy Example
+See [examples/basic_usage.py](examples/basic_usage.py) for a complete SQLite example.
 
 ```bash
 uv run python examples/basic_usage.py
+```
+
+### MongoDB Example
+See [examples/mongodb_usage.py](examples/mongodb_usage.py) for a complete MongoDB example.
+
+**Prerequisites:** MongoDB must be running locally or update the connection string.
+
+```bash
+# Start MongoDB (if using Docker)
+docker run -d -p 27017:27017 mongo
+
+# Run the example
+uv run python examples/mongodb_usage.py
 ```
 
 Then visit http://localhost:8000/docs to try the API.

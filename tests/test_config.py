@@ -8,7 +8,6 @@ from fastapi import HTTPException
 
 from fastapi_otp_authentication.config import OTPAuthConfig
 
-
 # ============================================================================
 # Test Configuration Classes
 # ============================================================================
@@ -21,7 +20,6 @@ class MinimalConfig(OTPAuthConfig):
 
     async def send_otp(self, email: str, code: str) -> None:
         """Minimal send_otp implementation."""
-        pass
 
 
 class ProductionConfig(OTPAuthConfig):
@@ -36,7 +34,6 @@ class ProductionConfig(OTPAuthConfig):
 
     async def send_otp(self, email: str, code: str) -> None:
         """Production send_otp implementation."""
-        pass
 
 
 class CustomClaimsConfig(OTPAuthConfig):
@@ -54,7 +51,6 @@ class CustomClaimsConfig(OTPAuthConfig):
 
     async def send_otp(self, email: str, code: str) -> None:
         """Test send_otp implementation."""
-        pass
 
 
 # ============================================================================

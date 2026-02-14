@@ -10,7 +10,7 @@ from fastapi.security import (  # type: ignore[import-untyped]
 )
 
 from fastapi_otp_authentication.config import OTPAuthConfig
-from fastapi_otp_authentication.db.adapter import OTPDatabase
+from fastapi_otp_authentication.db.adapter import DatabaseAdapter
 from fastapi_otp_authentication.security import decode_token
 from fastapi_otp_authentication.types import UserType
 
@@ -19,14 +19,14 @@ http_bearer_scheme = HTTPBearer()
 
 
 def get_current_user_dependency(
-    get_otp_db: Callable[[], OTPDatabase[UserType]],
+    get_otp_db: Callable[[], DatabaseAdapter[UserType]],
     config: OTPAuthConfig,
-) -> Callable[[str, OTPDatabase[UserType]], Any]:
+) -> Callable[[str, DatabaseAdapter[UserType]], Any]:
     """
     Create a dependency for getting the current authenticated user.
 
     Args:
-        get_otp_db: Callable that returns OTPDatabase instance
+        get_otp_db: Callable that returns DatabaseAdapter instance
         config: OTP authentication configuration
 
     Returns:
@@ -48,7 +48,7 @@ def get_current_user_dependency(
 
     async def get_current_user(
         credentials: HTTPAuthorizationCredentials = Depends(http_bearer_scheme),
-        db: OTPDatabase[UserType] = Depends(get_otp_db),
+        db: DatabaseAdapter[UserType] = Depends(get_otp_db),
     ) -> UserType:
         """
         Dependency that validates token and returns user.
@@ -111,9 +111,9 @@ def get_current_user_dependency(
 
 
 def get_verified_user_dependency(
-    get_otp_db: Callable[[], OTPDatabase[UserType]],
+    get_otp_db: Callable[[], DatabaseAdapter[UserType]],
     config: OTPAuthConfig,
-) -> Callable[[str, OTPDatabase[UserType]], Any]:
+) -> Callable[[str, DatabaseAdapter[UserType]], Any]:
     """
     Create a dependency for getting a verified authenticated user.
 
@@ -121,7 +121,7 @@ def get_verified_user_dependency(
     has completed OTP verification.
 
     Args:
-        get_otp_db: Callable that returns OTPDatabase instance
+        get_otp_db: Callable that returns DatabaseAdapter instance
         config: OTP authentication configuration
 
     Returns:

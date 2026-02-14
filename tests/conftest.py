@@ -4,14 +4,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from sqlalchemy import Integer, String, create_engine
+from sqlalchemy import Integer, String
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from fastapi_otp_authentication.config import OTPAuthConfig
-from fastapi_otp_authentication.db.adapter import OTPDatabase
-from fastapi_otp_authentication.db.models import BaseOTPUserTable, TokenBlacklist
-
+from fastapi_otp_authentication.db.sqlalchemy.adapter import SQLAlchemyAdapter
+from fastapi_otp_authentication.db.sqlalchemy.models import BaseOTPUserTable, TokenBlacklist
 
 # ============================================================================
 # Database Models for Testing
@@ -21,7 +20,6 @@ from fastapi_otp_authentication.db.models import BaseOTPUserTable, TokenBlacklis
 class Base(DeclarativeBase):
     """Base class for test database models."""
 
-    pass
 
 
 class User(BaseOTPUserTable[int], Base):
@@ -100,7 +98,7 @@ def current_time() -> datetime:
 
 
 @pytest.fixture
-async def async_engine():
+async def async_engine():  # type: ignore[no-untyped-def]
     """Create an async SQLite engine for testing."""
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -113,7 +111,7 @@ async def async_engine():
 
 
 @pytest.fixture
-async def async_session(async_engine) -> AsyncSession:
+async def async_session(async_engine) -> AsyncSession:  # type: ignore[no-untyped-def]
     """Create an async database session."""
     async_session_maker = async_sessionmaker(
         async_engine, class_=AsyncSession, expire_on_commit=False
@@ -123,13 +121,13 @@ async def async_session(async_engine) -> AsyncSession:
 
 
 @pytest.fixture
-async def otp_db(async_session: AsyncSession) -> OTPDatabase[User]:
-    """Create an OTPDatabase instance."""
-    return OTPDatabase(async_session, User, Blacklist)
+async def otp_db(async_session: AsyncSession) -> SQLAlchemyAdapter[User]:
+    """Create a SQLAlchemyAdapter instance."""
+    return SQLAlchemyAdapter(async_session, User, Blacklist)
 
 
 @pytest.fixture
-async def test_user(otp_db: OTPDatabase[User]) -> User:
+async def test_user(otp_db: SQLAlchemyAdapter[User]) -> User:
     """Create a test user."""
     return await otp_db.create_user(
         email="test@example.com",
@@ -138,7 +136,7 @@ async def test_user(otp_db: OTPDatabase[User]) -> User:
 
 
 @pytest.fixture
-async def verified_user(otp_db: OTPDatabase[User]) -> User:
+async def verified_user(otp_db: SQLAlchemyAdapter[User]) -> User:
     """Create a verified test user."""
     user = await otp_db.create_user(
         email="verified@example.com",
@@ -150,7 +148,7 @@ async def verified_user(otp_db: OTPDatabase[User]) -> User:
 
 @pytest.fixture
 async def user_with_otp(
-    otp_db: OTPDatabase[User], test_user: User
+    otp_db: SQLAlchemyAdapter[User], test_user: User
 ) -> User:
     """Create a test user with an active OTP."""
     await otp_db.update_otp(test_user, "123456")
