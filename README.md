@@ -34,7 +34,7 @@ Choose the backend that fits your stack. Both implementations provide the same O
 
 ```bash
 # Install base package
-uv add git+https://github.com/gronnmann/fastapi-otp-authentication.git
+uv add fastapi-otp-authentication # or pip install if using pip
 
 # Install with SQLAlchemy support
 uv add "fastapi-otp-authentication[sqlalchemy] @ git+https://github.com/gronnmann/fastapi-otp-authentication.git"
