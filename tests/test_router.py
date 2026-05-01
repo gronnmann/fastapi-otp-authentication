@@ -1,6 +1,7 @@
 """Tests for API router endpoints."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 import pytest
 from fastapi import FastAPI
@@ -554,3 +555,321 @@ class TestFullAuthenticationFlow:
         # Step 5: Refresh should fail after logout
         response5 = client.post("/auth/refresh")
         assert response5.status_code in [401, 422]  # Unauthorized or cookie issue
+
+
+# ============================================================================
+# Refresh Token Delivery Mode Fixtures & Helpers
+# ============================================================================
+
+
+def make_app_with_delivery(
+    otp_db: SQLAlchemyAdapter[User],
+    delivery: Literal["cookie", "body", "both"],
+) -> FastAPI:
+    """Create a FastAPI app with the given refresh_token_delivery mode."""
+
+    class DeliveryConfig(MockOTPConfig):
+        refresh_token_delivery = delivery
+
+    config = DeliveryConfig()
+    app_instance = FastAPI()
+
+    def get_db() -> SQLAlchemyAdapter[User]:
+        return otp_db
+
+    auth_router = get_auth_router(get_db, config)
+    app_instance.include_router(auth_router, prefix="/auth")
+    return app_instance
+
+
+# ============================================================================
+# Body Delivery Mode Tests
+# ============================================================================
+
+
+class TestBodyDeliveryMode:
+    """Test refresh_token_delivery='body' - tokens returned in response body."""
+
+    @pytest.mark.asyncio
+    async def test_verify_otp_returns_refresh_token_in_body(
+        self,
+        otp_db: SQLAlchemyAdapter[User],
+        test_user: User,
+    ) -> None:
+        """Should return refresh_token in response body, not in cookie."""
+        app = make_app_with_delivery(otp_db, "body")
+        client = TestClient(app)
+        await otp_db.update_otp(test_user, "000000")
+
+        response = client.post(
+            "/auth/verify-otp",
+            json={"email": test_user.email, "code": "000000"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
+        assert data["refresh_token"] is not None
+        assert "refresh_token" not in response.cookies
+
+    @pytest.mark.asyncio
+    async def test_refresh_with_body_token(
+        self,
+        otp_db: SQLAlchemyAdapter[User],
+        verified_user: User,
+    ) -> None:
+        """Should accept refresh token from request body."""
+        config = MockOTPConfig()
+        app = make_app_with_delivery(otp_db, "body")
+        client = TestClient(app)
+
+        refresh_token = create_refresh_token(
+            user_id=verified_user.id,
+            secret_key=config.secret_key,
+            algorithm=config.algorithm,
+            lifetime=config.refresh_token_lifetime,
+        )
+
+        response = client.post(
+            "/auth/refresh",
+            json={"refresh_token": refresh_token},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
+
+    @pytest.mark.asyncio
+    async def test_refresh_fails_without_body_token(
+        self,
+        otp_db: SQLAlchemyAdapter[User],
+    ) -> None:
+        """Should reject when no refresh token provided in body or cookie."""
+        app = make_app_with_delivery(otp_db, "body")
+        client = TestClient(app)
+
+        response = client.post("/auth/refresh", json={})
+
+        assert response.status_code == 401
+        assert "not found" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_logout_with_body_token(
+        self,
+        otp_db: SQLAlchemyAdapter[User],
+        verified_user: User,
+    ) -> None:
+        """Should blacklist refresh token passed in request body."""
+        from fastapi_otp_authentication.security import decode_token
+
+        config = MockOTPConfig()
+        app = make_app_with_delivery(otp_db, "body")
+        client = TestClient(app)
+
+        refresh_token = create_refresh_token(
+            user_id=verified_user.id,
+            secret_key=config.secret_key,
+            algorithm=config.algorithm,
+            lifetime=config.refresh_token_lifetime,
+        )
+        claims = decode_token(refresh_token, config.secret_key, config.algorithm)
+
+        response = client.post(
+            "/auth/logout",
+            json={"refresh_token": refresh_token},
+        )
+
+        assert response.status_code == 200
+        assert await otp_db.is_blacklisted(claims["jti"]) is True
+
+    @pytest.mark.asyncio
+    async def test_logout_does_not_set_cookie_in_body_mode(
+        self,
+        otp_db: SQLAlchemyAdapter[User],
+        verified_user: User,
+    ) -> None:
+        """Should not attempt to clear a cookie in body-only mode."""
+        config = MockOTPConfig()
+        app = make_app_with_delivery(otp_db, "body")
+        client = TestClient(app)
+
+        refresh_token = create_refresh_token(
+            user_id=verified_user.id,
+            secret_key=config.secret_key,
+            algorithm=config.algorithm,
+            lifetime=config.refresh_token_lifetime,
+        )
+
+        response = client.post("/auth/logout", json={"refresh_token": refresh_token})
+        assert response.status_code == 200
+        # No set-cookie header for refresh_token
+        set_cookie = response.headers.get("set-cookie", "")
+        assert "refresh_token" not in set_cookie
+
+    @pytest.mark.asyncio
+    async def test_full_body_delivery_flow(
+        self,
+        otp_db: SQLAlchemyAdapter[User],
+    ) -> None:
+        """Complete flow using body-only delivery: request OTP -> verify -> refresh -> logout."""
+        app = make_app_with_delivery(otp_db, "body")
+        client = TestClient(app)
+        email = "bodyflow@example.com"
+
+        # Request OTP
+        r1 = client.post("/auth/request-otp", json={"email": email})
+        assert r1.status_code == 200
+
+        # Verify OTP - get refresh token from body
+        r2 = client.post("/auth/verify-otp", json={"email": email, "code": "000000"})
+        assert r2.status_code == 200
+        body_refresh_token = r2.json()["refresh_token"]
+        assert body_refresh_token is not None
+        assert "refresh_token" not in r2.cookies
+
+        # Refresh using body token
+        r3 = client.post("/auth/refresh", json={"refresh_token": body_refresh_token})
+        assert r3.status_code == 200
+        assert "access_token" in r3.json()
+
+        # Logout using body token
+        r4 = client.post("/auth/logout", json={"refresh_token": body_refresh_token})
+        assert r4.status_code == 200
+
+        # Refresh should now fail (token blacklisted)
+        r5 = client.post("/auth/refresh", json={"refresh_token": body_refresh_token})
+        assert r5.status_code == 401
+
+
+# ============================================================================
+# Both Delivery Mode Tests
+# ============================================================================
+
+
+class TestBothDeliveryMode:
+    """Test refresh_token_delivery='both' - cookie AND body."""
+
+    @pytest.mark.asyncio
+    async def test_verify_otp_sets_cookie_and_body(
+        self,
+        otp_db: SQLAlchemyAdapter[User],
+        test_user: User,
+    ) -> None:
+        """Should set HTTP-only cookie AND include refresh_token in body."""
+        app = make_app_with_delivery(otp_db, "both")
+        client = TestClient(app)
+        await otp_db.update_otp(test_user, "000000")
+
+        response = client.post(
+            "/auth/verify-otp",
+            json={"email": test_user.email, "code": "000000"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["refresh_token"] is not None
+        assert "refresh_token" in response.cookies
+
+    @pytest.mark.asyncio
+    async def test_refresh_prefers_cookie_over_body(
+        self,
+        otp_db: SQLAlchemyAdapter[User],
+        verified_user: User,
+    ) -> None:
+        """Cookie takes priority when both cookie and body token are provided."""
+        config = MockOTPConfig()
+        app = make_app_with_delivery(otp_db, "both")
+        client = TestClient(app)
+
+        cookie_token = create_refresh_token(
+            user_id=verified_user.id,
+            secret_key=config.secret_key,
+            algorithm=config.algorithm,
+            lifetime=config.refresh_token_lifetime,
+        )
+        body_token = create_refresh_token(
+            user_id=verified_user.id,
+            secret_key=config.secret_key,
+            algorithm=config.algorithm,
+            lifetime=config.refresh_token_lifetime,
+        )
+
+        client.cookies.set("refresh_token", cookie_token)
+        response = client.post("/auth/refresh", json={"refresh_token": body_token})
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_refresh_falls_back_to_body_when_no_cookie(
+        self,
+        otp_db: SQLAlchemyAdapter[User],
+        verified_user: User,
+    ) -> None:
+        """Should fall back to body token when no cookie is set."""
+        config = MockOTPConfig()
+        app = make_app_with_delivery(otp_db, "both")
+        client = TestClient(app)
+
+        refresh_token = create_refresh_token(
+            user_id=verified_user.id,
+            secret_key=config.secret_key,
+            algorithm=config.algorithm,
+            lifetime=config.refresh_token_lifetime,
+        )
+
+        response = client.post("/auth/refresh", json={"refresh_token": refresh_token})
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_logout_clears_cookie_in_both_mode(
+        self,
+        otp_db: SQLAlchemyAdapter[User],
+        verified_user: User,
+    ) -> None:
+        """Should clear cookie on logout in 'both' mode."""
+        config = MockOTPConfig()
+        app = make_app_with_delivery(otp_db, "both")
+        client = TestClient(app)
+
+        refresh_token = create_refresh_token(
+            user_id=verified_user.id,
+            secret_key=config.secret_key,
+            algorithm=config.algorithm,
+            lifetime=config.refresh_token_lifetime,
+        )
+        client.cookies.set("refresh_token", refresh_token)
+
+        response = client.post("/auth/logout")
+        assert response.status_code == 200
+        set_cookie = response.headers.get("set-cookie", "")
+        assert "refresh_token=" in set_cookie
+
+
+# ============================================================================
+# Cookie Delivery Mode (default) - backwards compatibility
+# ============================================================================
+
+
+class TestCookieDeliveryModeDefault:
+    """Ensure default 'cookie' mode behavior is unchanged."""
+
+    @pytest.mark.asyncio
+    async def test_verify_otp_does_not_include_refresh_in_body(
+        self,
+        otp_db: SQLAlchemyAdapter[User],
+        test_user: User,
+    ) -> None:
+        """Default cookie mode should NOT include refresh_token in response body."""
+        app = make_app_with_delivery(otp_db, "cookie")
+        client = TestClient(app)
+        await otp_db.update_otp(test_user, "000000")
+
+        response = client.post(
+            "/auth/verify-otp",
+            json={"email": test_user.email, "code": "000000"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("refresh_token") is None
+        assert "refresh_token" in response.cookies

@@ -10,7 +10,9 @@ A flexible, type-safe library for adding OTP (One-Time Password) based authentic
 ## Features
 
 - 🔐 **Cryptographically Secure**: Uses `secrets` module for OTP generation
-- 🍪 **HTTP-Only Cookies**: Refresh tokens stored securely
+- 🍪 **HTTP-Only Cookies**: Refresh tokens stored securely (web)
+- 📱 **App-Friendly**: Refresh tokens can also be returned in response body (mobile/native)
+- 🔀 **Dual Mode**: Same backend can serve web (cookie) and app (body) clients simultaneously
 - 🚫 **Token Blacklisting**: Revoke tokens on logout
 - 💯 **100% Type Safe**: Full mypy strict mode compliance
 - 🎯 **Flexible**: Extend abstract classes to customize behavior
@@ -365,6 +367,43 @@ async def admin_check(claims: dict = custom_claims):
         raise HTTPException(status_code=403, detail="Admin access required")
     return {"message": "Admin access granted"}
 ```
+
+### Refresh Token Delivery Mode
+
+By default the refresh token is stored in an HTTP-only cookie (best for web). To support mobile/native apps that manage tokens manually, set `refresh_token_delivery`:
+
+| Value | Behaviour |
+|-------|-----------|
+| `"cookie"` | *(default)* Refresh token set in HTTP-only cookie only |
+| `"body"` | Refresh token returned in JSON response body; accepted from request body |
+| `"both"` | Cookie **and** body — one backend serves both web and app clients |
+
+```python
+class MyOTPConfig(OTPAuthConfig):
+    # Mobile app: token returned in verify-otp response body
+    refresh_token_delivery = "body"
+
+    # Or serve both web and app from the same backend
+    # refresh_token_delivery = "both"
+```
+
+**`verify-otp` response (`"body"` / `"both"` mode):**
+```json
+{
+  "access_token": "eyJ...",
+  "token_type": "bearer",
+  "refresh_token": "eyJ..."
+}
+```
+
+**`refresh` and `logout` with body token:**
+```json
+{
+  "refresh_token": "eyJ..."
+}
+```
+
+When a request contains **both** a cookie and a body token, the cookie takes priority.
 
 ### Rate Limiting
 

@@ -19,9 +19,11 @@ from fastapi_otp_authentication.dependencies import (
 )
 from fastapi_otp_authentication.router import get_auth_router
 from fastapi_otp_authentication.schemas import (
+    LogoutRequest,
     MessageResponse,
     OTPRequest,
     OTPVerify,
+    RefreshRequest,
     TokenResponse,
 )
 
@@ -30,12 +32,14 @@ __version__ = "0.1.0"
 __all__ = [
     "BaseOTPUserTable",
     "DatabaseAdapter",
+    "LogoutRequest",
     "MessageResponse",
     "OTPAuthConfig",
     "OTPRequest",
     "OTPUserProtocol",
     "OTPVerify",
     "PydanticOTPUserProtocol",
+    "RefreshRequest",
     "SQLAlchemyAdapter",
     "SQLAlchemyUserModelProtocol",
     "TokenBlacklist",

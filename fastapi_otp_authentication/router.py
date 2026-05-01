@@ -16,9 +16,11 @@ from fastapi_otp_authentication.config import OTPAuthConfig
 from fastapi_otp_authentication.db.adapter import DatabaseAdapter
 from fastapi_otp_authentication.db.protocols import OTPUserProtocol
 from fastapi_otp_authentication.schemas import (
+    LogoutRequest,
     MessageResponse,
     OTPRequest,
     OTPVerify,
+    RefreshRequest,
     TokenResponse,
 )
 from fastapi_otp_authentication.security import (
@@ -56,6 +58,10 @@ def get_auth_router(
         ```
     """
     router = APIRouter()
+
+    def _extract_refresh_token(request: Request, body_token: str | None) -> str | None:
+        """Extract refresh token from cookie (preferred) or request body."""
+        return request.cookies.get("refresh_token") or body_token
 
     @router.post(
         "/request-otp",
@@ -129,8 +135,8 @@ def get_auth_router(
         response_model=TokenResponse,
         status_code=status.HTTP_200_OK,
         summary="Verify OTP code",
-        description="Verify OTP code and receive access token with refresh token "
-        "in HTTP-only cookie",
+        description="Verify OTP code and receive access token. Refresh token is delivered "
+        "via HTTP-only cookie, response body, or both depending on refresh_token_delivery config.",
     )
     async def verify_otp(
         request: OTPVerify,
@@ -208,34 +214,46 @@ def get_auth_router(
             lifetime=config.refresh_token_lifetime,
         )
 
-        # Set refresh token in HTTP-only cookie
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh_token,
-            max_age=int(config.refresh_token_lifetime.total_seconds()),
-            httponly=True,
-            secure=config.cookie_secure,
-            samesite="lax",
+        # Set refresh token in HTTP-only cookie if configured
+        if config.refresh_token_delivery in ("cookie", "both"):
+            response.set_cookie(
+                key="refresh_token",
+                value=refresh_token,
+                max_age=int(config.refresh_token_lifetime.total_seconds()),
+                httponly=True,
+                secure=config.cookie_secure,
+                samesite="lax",
+            )
+
+        # Include refresh token in response body if configured
+        body_refresh_token = (
+            refresh_token if config.refresh_token_delivery in ("body", "both") else None
         )
 
-        return TokenResponse(access_token=access_token, token_type="bearer")
+        return TokenResponse(
+            access_token=access_token,
+            token_type="bearer",
+            refresh_token=body_refresh_token,
+        )
 
     @router.post(
         "/refresh",
         response_model=TokenResponse,
         status_code=status.HTTP_200_OK,
         summary="Refresh access token",
-        description="Get a new access token using refresh token from HTTP-only cookie",
+        description="Get a new access token using refresh token from HTTP-only cookie or request body",
     )
     async def refresh_token(
         request: Request,
+        body: RefreshRequest = RefreshRequest(),
         db: DatabaseAdapter[OTPUserProtocol] = Depends(get_otp_db),
     ) -> TokenResponse:
         """
-        Refresh access token using refresh token from cookie.
+        Refresh access token using refresh token from cookie or request body.
 
         Args:
             request: FastAPI Request object
+            body: Optional request body containing refresh token
             db: Database adapter
 
         Returns:
@@ -245,17 +263,17 @@ def get_auth_router(
             HTTPException: 401 if token is blacklisted or invalid
             HTTPException: 404 if user not found
         """
-        # Extract refresh token from cookies
-        refresh_token = request.cookies.get("refresh_token")
+        # Extract refresh token from cookie (preferred) or request body
+        token = _extract_refresh_token(request, body.refresh_token)
 
-        if not refresh_token:
+        if not token:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Refresh token not found in cookies",
+                detail="Refresh token not found",
             )
 
         # Decode refresh token
-        claims = decode_token(refresh_token, config.secret_key, config.algorithm)
+        claims = decode_token(token, config.secret_key, config.algorithm)
 
         # Verify token type
         if claims.get("type") != "refresh":
@@ -311,6 +329,7 @@ def get_auth_router(
     async def logout(
         request: Request,
         response: Response,
+        body: LogoutRequest = LogoutRequest(),
         db: DatabaseAdapter[OTPUserProtocol] = Depends(get_otp_db),
     ) -> MessageResponse:
         """
@@ -319,19 +338,20 @@ def get_auth_router(
         Args:
             request: FastAPI Request object
             response: FastAPI Response object
+            body: Optional request body containing refresh token
             db: Database adapter
 
         Returns:
             Success message
         """
-        # Extract refresh token from cookies
-        refresh_token = request.cookies.get("refresh_token")
+        # Extract refresh token from cookie (preferred) or request body
+        token = _extract_refresh_token(request, body.refresh_token)
 
         # Decode and blacklist refresh token if present
-        if refresh_token:
+        if token:
             try:
                 refresh_claims = decode_token(
-                    refresh_token, config.secret_key, config.algorithm
+                    token, config.secret_key, config.algorithm
                 )
                 refresh_jti = refresh_claims.get("jti")
                 refresh_exp = refresh_claims.get("exp")
@@ -345,13 +365,14 @@ def get_auth_router(
             except Exception:
                 pass  # Token might already be invalid
 
-        # Clear refresh token cookie
-        response.delete_cookie(
-            key="refresh_token",
-            httponly=True,
-            secure=config.cookie_secure,
-            samesite="lax",
-        )
+        # Clear refresh token cookie if cookie delivery is configured
+        if config.refresh_token_delivery in ("cookie", "both"):
+            response.delete_cookie(
+                key="refresh_token",
+                httponly=True,
+                secure=config.cookie_secure,
+                samesite="lax",
+            )
 
         return MessageResponse(message="Successfully logged out")
 

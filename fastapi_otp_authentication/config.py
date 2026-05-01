@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import timedelta
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import HTTPException, status
 
@@ -33,6 +33,14 @@ class OTPAuthConfig(ABC):
 
     cookie_secure: bool = True
     """Whether to set the 'Secure' flag on cookies (require https)."""
+
+    refresh_token_delivery: Literal["cookie", "body", "both"] = "cookie"
+    """How to deliver and accept the refresh token.
+
+    - ``"cookie"``: HTTP-only cookie only (default, web clients).
+    - ``"body"``: JSON response body / request body only (mobile/native apps).
+    - ``"both"``: Set cookie AND include in response body; accept from either source.
+    """
 
     # Token lifetimes
     access_token_lifetime: timedelta = timedelta(hours=1)
